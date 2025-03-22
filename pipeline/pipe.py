@@ -27,7 +27,18 @@ def _clock_cycles(num_batches: int, num_partitions: int) -> Iterable[List[Tuple[
     This function should yield schedules for each clock cycle.
     '''
     # BEGIN SOLUTION
-    raise NotImplementedError("Schedule Generation Not Implemented Yet")
+    # raise NotImplementedError("Schedule Generation Not Implemented Yet")
+    num_cycles = num_batches + num_partitions - 1
+    for clock in range(num_cycles):
+        schedule = []
+
+        for partition in range(min(clock + 1, num_partitions)):
+            microbatch = clock - partition
+
+            if microbatch < num_batches:
+                schedule.append((microbatch, partition))
+
+        yield schedule
     # END SOLUTION
 
 class Pipe(nn.Module):
@@ -55,7 +66,20 @@ class Pipe(nn.Module):
         Please note that you should put the result on the last device. Putting the result on the same device as input x will lead to pipeline parallel training failing.
         '''
         # BEGIN SOLUTION
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        # raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        micro_batches = x.chunk(self.split_size)
+        batches = list(micro_batches)
+
+        num_batches = len(batches)
+        num_partitions = len(self.partitions)
+
+        for schedule in _clock_cycles(num_batches, num_partitions):
+            self.compute(batches, schedule)
+        
+        last_device = self.devices[-1]
+        batches = [batch.to(last_device) for batch in batches]
+        return torch.cat(batches)
+
         # END SOLUTION
 
     # ASSIGNMENT 4.2
@@ -72,6 +96,25 @@ class Pipe(nn.Module):
         devices = self.devices
 
         # BEGIN SOLUTION
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        # raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        for microbatch_idx, partition_idx in schedule:
+            partition = partitions[partition_idx]
+            
+            def compute_fn():
+                batch = batches[microbatch_idx]
+                batch = batch.to(devices[partition_idx])
+                return partition(batch)
+            
+            task = Task(compute_fn)
+            self.in_queues[partition_idx].put(task)
+        
+        for _ in range(len(schedule)):
+            success, result = self.out_queues[partition_idx].get()
+            if success:
+                task, batch = result
+                batches[microbatch_idx] = batch
+            else:
+                raise RuntimeError("Pipeline computation failed")
+        
         # END SOLUTION
 
