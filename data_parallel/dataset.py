@@ -74,7 +74,7 @@ def partition_dataset(rank, world_size, dataset, batch_size=128, collate_fn=None
     """
     # BEGIN SOLUTION
     # raise NotImplementedError("Data Parallel Not Implemented Yet")
-    partitioned_batch_size = batch_size // rank
+    partitioned_batch_size = batch_size // world_size
     partitioner = DataPartitioner(data=dataset, sizes=[1 / world_size]*world_size)
     current_partition = partitioner.use(rank)
     dataloader = DataLoader(current_partition, collate_fn=collate_fn)
