@@ -17,7 +17,7 @@ class Partition():
         '''Given index, get the data according to the partitioned index'''
         # BEGIN SOLUTION
         # raise NotImplementedError("Data Parallel Not Implemented Yet")
-        return self.data[self.index][index]
+        return self.data[self.index[index]]
         # END SOLUTION
 
 # ASSIGNMENT 4.1
@@ -77,7 +77,7 @@ def partition_dataset(rank, world_size, dataset, batch_size=128, collate_fn=None
     partitioned_batch_size = batch_size // world_size
     partitioner = DataPartitioner(data=dataset, sizes=[1 / world_size]*world_size)
     current_partition = partitioner.use(rank)
-    dataloader = DataLoader(current_partition, collate_fn=collate_fn)
+    dataloader = DataLoader(current_partition, batch_size=partitioned_batch_size, collate_fn=collate_fn)
     return dataloader
     # END SOLUTION
 
