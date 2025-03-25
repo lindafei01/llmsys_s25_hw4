@@ -97,6 +97,7 @@ class Pipe(nn.Module):
 
         # BEGIN SOLUTION
         # raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+        tasks = {}  # 用字典存储每个 (microbatch_idx, partition_idx) 对应的任务
         for microbatch_idx, partition_idx in schedule:
             partition = partitions[partition_idx]
             
@@ -107,14 +108,20 @@ class Pipe(nn.Module):
             
             task = Task(compute_fn)
             self.in_queues[partition_idx].put(task)
-        
-        for microbatch_idx, partition_idx in schedule:  
+            tasks[(microbatch_idx, partition_idx)] = task
+
+        # 2. 收集所有结果
+        for microbatch_idx, partition_idx in schedule:
             success, result = self.out_queues[partition_idx].get()
             if success:
                 task, batch = result
-                batches[microbatch_idx] = batch  
+                # 验证我们得到了正确的任务结果
+                if task == tasks[(microbatch_idx, partition_idx)]:
+                    batches[microbatch_idx] = batch
+                else:
+                    raise RuntimeError(f"Task mismatch for microbatch {microbatch_idx}, partition {partition_idx}")
             else:
-                raise RuntimeError("Pipeline computation failed")
+                raise RuntimeError(f"Pipeline computation failed at microbatch {microbatch_idx}, partition {partition_idx}")
         
         # END SOLUTION
 
