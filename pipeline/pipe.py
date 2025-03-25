@@ -97,27 +97,30 @@ class Pipe(nn.Module):
 
         # BEGIN SOLUTION
         # raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
+
         # 1. 提交计算任务
+        tasks = {}
         for microbatch_idx, partition_idx in schedule:
             partition = partitions[partition_idx]
+            device = devices[partition_idx]
             
-            def make_compute_fn(mb_idx, p_idx):
+            # 创建一个新的闭包来正确捕获变量
+            def create_task(batch, partition, device):
                 def compute_fn():
-                    # 确保数据在正确的设备上
-                    batch = batches[mb_idx].to(devices[p_idx])
-                    # 确保 partition 在正确的设备上
-                    return partition(batch)
-                return compute_fn
+                    return partition(batch.to(device))
+                return Task(compute_fn)
             
-            task = Task(make_compute_fn(microbatch_idx, partition_idx))
+            # 获取当前批次的数据
+            batch = batches[microbatch_idx]
+            task = create_task(batch, partition, device)
             self.in_queues[partition_idx].put(task)
+            tasks[(microbatch_idx, partition_idx)] = task
 
         # 2. 收集结果
         for microbatch_idx, partition_idx in schedule:
             success, result = self.out_queues[partition_idx].get()
             if success:
                 _, batch = result
-                # 保持结果在当前设备上
                 batches[microbatch_idx] = batch
             else:
                 raise RuntimeError(f"Pipeline computation failed at microbatch {microbatch_idx}, partition {partition_idx}")
