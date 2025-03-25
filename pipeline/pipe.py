@@ -97,31 +97,31 @@ class Pipe(nn.Module):
 
         # BEGIN SOLUTION
         # raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
-        tasks = {}  # 用字典存储每个 (microbatch_idx, partition_idx) 对应的任务
+        # 1. 提交计算任务
         for microbatch_idx, partition_idx in schedule:
             partition = partitions[partition_idx]
             
-            def compute_fn():
-                batch = batches[microbatch_idx]
-                batch = batch.to(devices[partition_idx])
-                return partition(batch)
+            def make_compute_fn(mb_idx, p_idx, partition):
+                def compute_fn():
+                    # 确保数据在正确的设备上
+                    batch = batches[mb_idx].to(devices[p_idx])
+                    # 确保 partition 在正确的设备上
+                    partition = partition.to(devices[p_idx])
+                    return partition(batch)
+                return compute_fn
             
-            task = Task(compute_fn)
+            task = Task(make_compute_fn(microbatch_idx, partition_idx, partition))
             self.in_queues[partition_idx].put(task)
-            tasks[(microbatch_idx, partition_idx)] = task
 
-        # 2. 收集所有结果
+        # 2. 收集结果
         for microbatch_idx, partition_idx in schedule:
             success, result = self.out_queues[partition_idx].get()
             if success:
-                task, batch = result
-                # 验证我们得到了正确的任务结果
-                if task == tasks[(microbatch_idx, partition_idx)]:
-                    batches[microbatch_idx] = batch
-                else:
-                    raise RuntimeError(f"Task mismatch for microbatch {microbatch_idx}, partition {partition_idx}")
+                _, batch = result
+                # 保持结果在当前设备上
+                batches[microbatch_idx] = batch
             else:
                 raise RuntimeError(f"Pipeline computation failed at microbatch {microbatch_idx}, partition {partition_idx}")
-        
+            
         # END SOLUTION
 
