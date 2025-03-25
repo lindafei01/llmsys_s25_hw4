@@ -101,16 +101,15 @@ class Pipe(nn.Module):
         for microbatch_idx, partition_idx in schedule:
             partition = partitions[partition_idx]
             
-            def make_compute_fn(mb_idx, p_idx, partition):
+            def make_compute_fn(mb_idx, p_idx):
                 def compute_fn():
                     # 确保数据在正确的设备上
                     batch = batches[mb_idx].to(devices[p_idx])
                     # 确保 partition 在正确的设备上
-                    partition = partition.to(devices[p_idx])
                     return partition(batch)
                 return compute_fn
             
-            task = Task(make_compute_fn(microbatch_idx, partition_idx, partition))
+            task = Task(make_compute_fn(microbatch_idx, partition_idx))
             self.in_queues[partition_idx].put(task)
 
         # 2. 收集结果
