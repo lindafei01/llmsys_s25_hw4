@@ -108,11 +108,11 @@ class Pipe(nn.Module):
             task = Task(compute_fn)
             self.in_queues[partition_idx].put(task)
         
-        for _ in range(len(schedule)):
+        for microbatch_idx, partition_idx in schedule:  
             success, result = self.out_queues[partition_idx].get()
             if success:
                 task, batch = result
-                batches[microbatch_idx] = batch
+                batches[microbatch_idx] = batch  
             else:
                 raise RuntimeError("Pipeline computation failed")
         
