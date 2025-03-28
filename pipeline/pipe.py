@@ -123,6 +123,7 @@ class Pipe(nn.Module):
                 _, batch = result
                 batches[microbatch_idx] = batch
             else:
+                print(result)
                 raise RuntimeError(f"Pipeline computation failed at microbatch {microbatch_idx}, partition {partition_idx}")
             
         # END SOLUTION
